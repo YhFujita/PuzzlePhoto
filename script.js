@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtn = document.getElementById('close-modal-btn');
 
     let currentImage = null;
-    let currentImage = null;
     let gridCols = 2; // Default 2x2
     let gridRows = 2;
     let pieces = [];
