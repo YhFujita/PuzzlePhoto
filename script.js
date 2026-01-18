@@ -11,19 +11,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtn = document.getElementById('close-modal-btn');
 
     let currentImage = null;
-    let gridSize = 2; // Default 2x2
+    let currentImage = null;
+    let gridCols = 2; // Default 2x2
+    let gridRows = 2;
     let pieces = [];
     let isGameActive = false;
 
     // --- Event Listeners ---
     imageUpload.addEventListener('change', handleImageUpload);
-    rotateBtn.addEventListener('click', handleRotate);
+    // rotateBtn removed from HTML, so no listener needed.
 
     difficultyBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
             difficultyBtns.forEach(b => b.classList.remove('active'));
             e.target.classList.add('active');
-            gridSize = parseInt(e.target.dataset.grid);
+            gridCols = parseInt(e.target.dataset.cols);
+            gridRows = parseInt(e.target.dataset.rows);
             if (currentImage) {
                 initGame(currentImage, false); // Re-init without shuffle first to show grid
             }
@@ -43,38 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Core Functions ---
-
-    function handleRotate() {
-        if (!currentImage) return;
-
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-
-            // Swap dimensions
-            canvas.width = currentImage.height;
-            canvas.height = currentImage.width;
-
-            // Rotate 90 degrees clockwise
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate(90 * Math.PI / 180);
-            ctx.drawImage(img, -currentImage.width / 2, -currentImage.height / 2);
-
-            const newSrc = canvas.toDataURL();
-
-            // Update currentImage
-            currentImage = {
-                src: newSrc,
-                width: canvas.width,
-                height: canvas.height,
-                ratio: canvas.width / canvas.height
-            };
-
-            initGame(currentImage, false);
-        };
-        img.src = currentImage.src;
-    }
+    // handleRotate removed
 
     function handleImageUpload(e) {
         const file = e.target.files[0];
@@ -104,18 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Adjust Aspect Ratio
         const gameArea = document.querySelector('.game-area');
 
-        // Calculate max dimensions
-        // Get container width - padding is handled by game-area constraints, but let's be safe
-        // game-area has max-height 70vh, width 100% of parent (max 600px - padding)
-
-        // We will calculate optimal size that fits in 100% width AND 70vh height
         const maxWidth = gameArea.clientWidth;
         const maxHeight = window.innerHeight * 0.7; // 70vh approximation
 
         let targetWidth = maxWidth;
         let targetHeight = targetWidth / imageObj.ratio;
 
-        // If height is too big, scale down based on height
         if (targetHeight > maxHeight) {
             targetHeight = maxHeight;
             targetWidth = targetHeight * imageObj.ratio;
@@ -125,21 +91,20 @@ document.addEventListener('DOMContentLoaded', () => {
         puzzleBoard.style.height = `${targetHeight}px`;
 
         // CSS Grid setup
-        puzzleBoard.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
-        puzzleBoard.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
+        puzzleBoard.style.gridTemplateColumns = `repeat(${gridCols}, 1fr)`;
+        puzzleBoard.style.gridTemplateRows = `repeat(${gridRows}, 1fr)`;
 
         const imageSrc = imageObj.src;
-        const totalPieces = gridSize * gridSize;
+        const totalPieces = gridCols * gridRows;
         const indexes = Array.from({ length: totalPieces }, (_, i) => i);
 
         if (shouldShuffle) {
-            // Fisher-Yates shuffle ensuring it's not solved initially
             do {
                 for (let i = indexes.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [indexes[i], indexes[j]] = [indexes[j], indexes[i]];
                 }
-            } while (checkIfSolved(indexes)); // Prevent already solved state
+            } while (checkIfSolved(indexes));
             isGameActive = true;
         } else {
             isGameActive = false;
@@ -165,14 +130,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Calculate background position
         // Row and Col for the original image part (index)
-        const row = Math.floor(index / gridSize);
-        const col = index % gridSize;
+        // Original grid size (e.g., 4x3) determined by current gridCols/Rows?
+        // Wait, if we change difficulty, the original image is split differently.
+        // So yes, use current gridCols/gridRows.
 
-        const percentage = 100 / (gridSize - 1);
+        const row = Math.floor(index / gridCols);
+        const col = index % gridCols;
+
+        // Percentage calculation needs to be careful about division by zero if grid=1 (not possible here)
+        const xPercent = 100 / (gridCols - 1);
+        const yPercent = 100 / (gridRows - 1);
 
         div.style.backgroundImage = `url(${imageSrc})`;
-        div.style.backgroundPosition = `calc(${col} * ${percentage}%) calc(${row} * ${percentage}%)`;
-        div.style.backgroundSize = `${gridSize * 100}%`;
+        // Standard background-position percentage formula: p * (100 / (N-1))
+        // But simply: x% y% 
+        // Example 2x2:
+        // (0,0) -> 0% 0%
+        // (1,0) -> 100% 0%
+        // (0,1) -> 0% 100%
+        // (1,1) -> 100% 100%
+
+        div.style.backgroundPosition = `${col * xPercent}% ${row * yPercent}%`;
+        div.style.backgroundSize = `${gridCols * 100}% ${gridRows * 100}%`;
 
         div.dataset.index = index;
         div.dataset.currentPos = currentPos;
@@ -187,18 +166,62 @@ document.addEventListener('DOMContentLoaded', () => {
     let draggedPiece = null;
 
     function addDnDEvents(piece) {
+        // Desktop
         piece.addEventListener('dragstart', dragStart);
         piece.addEventListener('dragover', dragOver);
         piece.addEventListener('dragleave', dragLeave);
         piece.addEventListener('drop', drop);
         piece.addEventListener('dragend', dragEnd);
 
-        // Touch events for mobile support could be added here
-        // optimizing for desktop first as per typical use case
+        // Touch (Mobile)
+        piece.addEventListener('touchstart', touchStart, { passive: false });
+        piece.addEventListener('touchmove', touchMove, { passive: false });
+        piece.addEventListener('touchend', touchEnd);
+    }
+
+    // --- Touch Handlers ---
+    let touchDragSrc = null;
+
+    function touchStart(e) {
+        if (!isGameActive) return;
+        // Prevent scroll if intended to drag? 
+        // Actually, 'touch-action: none' in CSS is better, but e.preventDefault() here works too.
+        e.preventDefault();
+
+        touchDragSrc = this;
+        this.classList.add('dragging');
+    }
+
+    function touchMove(e) {
+        if (!isGameActive || !touchDragSrc) return;
+        e.preventDefault(); // Prevent scrolling while dragging piece
+
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+
+        // Optional: Visual feedback for target
+        // We could implement 'drag-over' class toggling here if we track distinct targets
+    }
+
+    function touchEnd(e) {
+        if (!isGameActive || !touchDragSrc) return;
+
+        const touch = e.changedTouches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+
+        touchDragSrc.classList.remove('dragging');
+
+        // Check if dropped on another puzzle piece
+        if (target && target.classList.contains('puzzle-piece') && target !== touchDragSrc) {
+            swapPieces(touchDragSrc, target);
+            checkWinCondition();
+        }
+
+        touchDragSrc = null;
     }
 
     function dragStart(e) {
-        if (!isGameActive) return; // Disable drag if not shuffled
+        if (!isGameActive) return;
         draggedPiece = this;
         this.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
