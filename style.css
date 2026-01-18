@@ -295,6 +295,8 @@ input[type="file"] {
     position: relative;
     box-sizing: border-box;
     border: 1px solid rgba(255, 255, 255, 0.1);
+    touch-action: none;
+    /* Prevent scrolling on touch devices */
 }
 
 .puzzle-piece:hover {
