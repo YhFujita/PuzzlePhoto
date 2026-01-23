@@ -40,6 +40,29 @@ document.addEventListener('DOMContentLoaded', () => {
         initGame(currentImage, true);
     });
 
+    const sampleBtn = document.getElementById('sample-btn');
+    if (sampleBtn) {
+        sampleBtn.addEventListener('click', () => {
+            const sampleImageSrc = './sample_puzzle.png';
+            const img = new Image();
+            img.onload = () => {
+                currentImage = {
+                    src: sampleImageSrc,
+                    width: img.width,
+                    height: img.height,
+                    ratio: img.width / img.height
+                };
+                initGame(currentImage, false);
+                // Also update file input to clear it visually or just leave it?
+                // Maybe optional, but good to know we are using sample.
+            };
+            img.onerror = () => {
+                alert('サンプル画像の読み込みに失敗しました。');
+            };
+            img.src = sampleImageSrc;
+        });
+    }
+
     closeModalBtn.addEventListener('click', () => {
         successModal.classList.add('hidden');
     });
